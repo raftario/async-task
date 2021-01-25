@@ -341,6 +341,18 @@ impl Runnable {
             Waker::from_raw(raw_waker)
         }
     }
+
+    pub fn into_raw(this: Runnable) -> *mut () {
+        let ptr = this.ptr;
+        mem::forget(this);
+        ptr.as_ptr()
+    }
+
+    pub unsafe fn from_raw(ptr: *mut ()) -> Runnable {
+        Runnable {
+            ptr: NonNull::new_unchecked(ptr),
+        }
+    }
 }
 
 impl Drop for Runnable {
