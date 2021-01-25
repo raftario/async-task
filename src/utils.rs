@@ -62,3 +62,120 @@ pub(crate) fn padding_needed_for(layout: Layout, align: usize) -> usize {
     let len_rounded_up = len.wrapping_add(align).wrapping_sub(1) & !align.wrapping_sub(1);
     len_rounded_up.wrapping_sub(len)
 }
+
+#[cfg(feature = "std")]
+pub(crate) mod checked {
+    use std::future::Future;
+    use std::mem::ManuallyDrop;
+    use std::ops::{Deref, DerefMut};
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use std::thread::{self, ThreadId};
+
+    #[inline]
+    fn thread_id() -> ThreadId {
+        thread_local! {
+            static ID: ThreadId = thread::current().id();
+        }
+        ID.try_with(|id| *id)
+            .unwrap_or_else(|_| thread::current().id())
+    }
+
+    pub(crate) struct CheckedFuture<F> {
+        id: ThreadId,
+        inner: ManuallyDrop<F>,
+    }
+
+    impl<F> CheckedFuture<F> {
+        pub(crate) fn new(future: F) -> CheckedFuture<F> {
+            CheckedFuture {
+                id: thread_id(),
+                inner: ManuallyDrop::new(future),
+            }
+        }
+    }
+
+    impl<F> Drop for CheckedFuture<F> {
+        fn drop(&mut self) {
+            assert!(
+                self.id == thread_id(),
+                "local task dropped by a thread that didn't spawn it"
+            );
+            unsafe {
+                ManuallyDrop::drop(&mut self.inner);
+            }
+        }
+    }
+
+    impl<F: Future> Future for CheckedFuture<F> {
+        type Output = F::Output;
+
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            assert!(
+                self.id == thread_id(),
+                "local task polled by a thread that didn't spawn it"
+            );
+            unsafe { self.map_unchecked_mut(|c| &mut *c.inner).poll(cx) }
+        }
+    }
+
+    pub struct Checked<D> {
+        id: ThreadId,
+        inner: ManuallyDrop<D>,
+    }
+
+    impl<D> Checked<D> {
+        pub(crate) fn new(data: D) -> Checked<D> {
+            Checked {
+                id: thread_id(),
+                inner: ManuallyDrop::new(data),
+            }
+        }
+    }
+
+    impl<D> Drop for Checked<D> {
+        fn drop(&mut self) {
+            assert!(
+                self.id == thread_id(),
+                "local task dropped by a thread that didn't spawn it"
+            );
+            unsafe {
+                ManuallyDrop::drop(&mut self.inner);
+            }
+        }
+    }
+
+    impl<D> Deref for Checked<D> {
+        type Target = D;
+
+        fn deref(&self) -> &Self::Target {
+            assert!(
+                self.id == thread_id(),
+                "local task accessed by a thread that didn't spawn it"
+            );
+            &self.inner
+        }
+    }
+
+    impl<D> DerefMut for Checked<D> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            assert!(
+                self.id == thread_id(),
+                "local task accessed by a thread that didn't spawn it"
+            );
+            &mut self.inner
+        }
+    }
+
+    impl<D> AsRef<D> for Checked<D> {
+        fn as_ref(&self) -> &D {
+            &*self
+        }
+    }
+
+    impl<D> AsMut<D> for Checked<D> {
+        fn as_mut(&mut self) -> &mut D {
+            &mut *self
+        }
+    }
+}

@@ -9,7 +9,17 @@ use core::task::Waker;
 use crate::header::Header;
 use crate::raw::RawTask;
 use crate::state::*;
+use crate::utils::checked::{Checked, CheckedFuture};
 use crate::Task;
+
+pub fn spawn<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+    S: Fn(Runnable) + Send + Sync + 'static,
+{
+    spawn_with(future, schedule, ())
+}
 
 /// Creates a new task.
 ///
@@ -42,12 +52,26 @@ use crate::Task;
 /// // Create a task with the future and the schedule function.
 /// let (runnable, task) = async_task::spawn(future, schedule);
 /// ```
-pub fn spawn<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
+pub fn spawn_with<F, S, D>(future: F, schedule: S, data: D) -> (Runnable<D>, Task<F::Output>)
 where
     F: Future + Send + 'static,
     F::Output: Send + 'static,
+    S: Fn(Runnable<D>) + Send + Sync + 'static,
+    D: Send + 'static,
+{
+    unsafe { spawn_unchecked_with(future, schedule, data) }
+}
+
+#[cfg(feature = "std")]
+pub fn spawn_local<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
+where
+    F: Future + 'static,
+    F::Output: 'static,
     S: Fn(Runnable) + Send + Sync + 'static,
 {
+    // Wrap the future into one that checks which thread it's on.
+    let future = CheckedFuture::new(future);
+
     unsafe { spawn_unchecked(future, schedule) }
 }
 
@@ -84,62 +108,32 @@ where
 /// let (runnable, task) = async_task::spawn_local(future, schedule);
 /// ```
 #[cfg(feature = "std")]
-pub fn spawn_local<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
+pub fn spawn_local_with<F, S, D>(
+    future: F,
+    schedule: S,
+    data: D,
+) -> (Runnable<Checked<D>>, Task<F::Output>)
 where
     F: Future + 'static,
     F::Output: 'static,
-    S: Fn(Runnable) + Send + Sync + 'static,
+    S: Fn(Runnable<Checked<D>>) + Send + Sync + 'static,
+    D: 'static,
 {
-    use std::mem::ManuallyDrop;
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
-    use std::thread::{self, ThreadId};
-
-    #[inline]
-    fn thread_id() -> ThreadId {
-        thread_local! {
-            static ID: ThreadId = thread::current().id();
-        }
-        ID.try_with(|id| *id)
-            .unwrap_or_else(|_| thread::current().id())
-    }
-
-    struct Checked<F> {
-        id: ThreadId,
-        inner: ManuallyDrop<F>,
-    }
-
-    impl<F> Drop for Checked<F> {
-        fn drop(&mut self) {
-            assert!(
-                self.id == thread_id(),
-                "local task dropped by a thread that didn't spawn it"
-            );
-            unsafe {
-                ManuallyDrop::drop(&mut self.inner);
-            }
-        }
-    }
-
-    impl<F: Future> Future for Checked<F> {
-        type Output = F::Output;
-
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            assert!(
-                self.id == thread_id(),
-                "local task polled by a thread that didn't spawn it"
-            );
-            unsafe { self.map_unchecked_mut(|c| &mut *c.inner).poll(cx) }
-        }
-    }
-
     // Wrap the future into one that checks which thread it's on.
-    let future = Checked {
-        id: thread_id(),
-        inner: ManuallyDrop::new(future),
-    };
+    let future = CheckedFuture::new(future);
 
-    unsafe { spawn_unchecked(future, schedule) }
+    // Wrap the data the same way
+    let data = Checked::new(data);
+
+    unsafe { spawn_unchecked_with(future, schedule, data) }
+}
+
+pub unsafe fn spawn_unchecked<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
+where
+    F: Future,
+    S: Fn(Runnable),
+{
+    spawn_unchecked_with(future, schedule, ())
 }
 
 /// Creates a new task without [`Send`], [`Sync`], and `'static` bounds.
@@ -171,20 +165,27 @@ where
 /// // Create a task with the future and the schedule function.
 /// let (runnable, task) = unsafe { async_task::spawn_unchecked(future, schedule) };
 /// ```
-pub unsafe fn spawn_unchecked<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
+pub unsafe fn spawn_unchecked_with<F, S, D>(
+    future: F,
+    schedule: S,
+    data: D,
+) -> (Runnable<D>, Task<F::Output>)
 where
     F: Future,
-    S: Fn(Runnable),
+    S: Fn(Runnable<D>),
 {
     // Allocate large futures on the heap.
     let ptr = if mem::size_of::<F>() >= 2048 {
         let future = alloc::boxed::Box::pin(future);
-        RawTask::<_, F::Output, S>::allocate(future, schedule)
+        RawTask::<_, F::Output, S, D>::allocate(future, schedule, data)
     } else {
-        RawTask::<F, F::Output, S>::allocate(future, schedule)
+        RawTask::<F, F::Output, S, D>::allocate(future, schedule, data)
     };
 
-    let runnable = Runnable { ptr };
+    let runnable = Runnable {
+        ptr,
+        _marker: Default::default(),
+    };
     let task = Task {
         ptr,
         _marker: PhantomData,
@@ -230,20 +231,23 @@ where
 /// runnable.schedule();
 /// assert_eq!(smol::future::block_on(task), 3);
 /// ```
-pub struct Runnable {
+pub struct Runnable<D = ()> {
     /// A pointer to the heap-allocated task.
     pub(crate) ptr: NonNull<()>,
+
+    /// A marker capturing generic type `D`.
+    pub(crate) _marker: PhantomData<D>,
 }
 
-unsafe impl Send for Runnable {}
-unsafe impl Sync for Runnable {}
+unsafe impl<D: Sync> Send for Runnable<D> {}
+unsafe impl<D: Sync> Sync for Runnable<D> {}
 
 #[cfg(feature = "std")]
-impl std::panic::UnwindSafe for Runnable {}
+impl<D: std::panic::RefUnwindSafe> std::panic::UnwindSafe for Runnable<D> {}
 #[cfg(feature = "std")]
-impl std::panic::RefUnwindSafe for Runnable {}
+impl<D: std::panic::RefUnwindSafe> std::panic::RefUnwindSafe for Runnable<D> {}
 
-impl Runnable {
+impl<D> Runnable<D> {
     /// Schedules the task.
     ///
     /// This is a convenience method that passes the [`Runnable`] to the schedule function.
@@ -342,22 +346,43 @@ impl Runnable {
         }
     }
 
-    pub fn into_raw(this: Runnable) -> *mut () {
+    pub fn data(&self) -> &D {
+        let ptr = self.ptr.as_ptr();
+        let header = ptr as *const Header;
+
+        unsafe {
+            let data = ((*header).vtable.get_data)(ptr) as *const D;
+            &*data
+        }
+    }
+
+    pub fn data_mut(&mut self) -> &mut D {
+        let ptr = self.ptr.as_ptr();
+        let header = ptr as *const Header;
+
+        unsafe {
+            let data = ((*header).vtable.get_data)(ptr) as *mut D;
+            &mut *data
+        }
+    }
+
+    pub fn into_raw(this: Runnable<D>) -> *mut () {
         let ptr = this.ptr;
         mem::forget(this);
         ptr.as_ptr()
     }
 
-    pub unsafe fn from_raw(ptr: *mut ()) -> Runnable {
+    pub unsafe fn from_raw(ptr: *mut ()) -> Runnable<D> {
         Runnable {
             ptr: NonNull::new_unchecked(ptr),
+            _marker: Default::default(),
         }
     }
 }
 
-impl Drop for Runnable {
+impl<D> Drop for Runnable<D> {
     fn drop(&mut self) {
-        let ptr = self.ptr.as_ptr();
+        let ptr = self.ptr.as_ptr() as *mut ();
         let header = ptr as *const Header;
 
         unsafe {
@@ -398,7 +423,7 @@ impl Drop for Runnable {
     }
 }
 
-impl fmt::Debug for Runnable {
+impl<D> fmt::Debug for Runnable<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr = self.ptr.as_ptr();
         let header = ptr as *const Header;

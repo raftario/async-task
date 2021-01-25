@@ -81,8 +81,10 @@ mod state;
 mod task;
 mod utils;
 
-pub use crate::runnable::{spawn, spawn_unchecked, Runnable};
+pub use crate::runnable::{spawn, spawn_unchecked, spawn_unchecked_with, spawn_with, Runnable};
 pub use crate::task::Task;
 
 #[cfg(feature = "std")]
-pub use crate::runnable::spawn_local;
+pub use crate::runnable::{spawn_local, spawn_local_with};
+#[cfg(feature = "std")]
+pub use crate::utils::checked::Checked;
