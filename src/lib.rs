@@ -86,5 +86,3 @@ pub use crate::task::Task;
 
 #[cfg(feature = "std")]
 pub use crate::runnable::{spawn_local, spawn_local_with};
-#[cfg(feature = "std")]
-pub use crate::utils::checked::Checked;

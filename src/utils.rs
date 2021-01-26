@@ -65,6 +65,7 @@ pub(crate) fn padding_needed_for(layout: Layout, align: usize) -> usize {
 
 #[cfg(feature = "std")]
 pub(crate) mod checked {
+    use std::fmt;
     use std::future::Future;
     use std::mem::ManuallyDrop;
     use std::ops::{Deref, DerefMut};
@@ -119,6 +120,7 @@ pub(crate) mod checked {
         }
     }
 
+    #[derive(Clone)]
     pub struct Checked<D> {
         id: ThreadId,
         inner: ManuallyDrop<D>,
@@ -164,18 +166,6 @@ pub(crate) mod checked {
                 "local task accessed by a thread that didn't spawn it"
             );
             &mut self.inner
-        }
-    }
-
-    impl<D> AsRef<D> for Checked<D> {
-        fn as_ref(&self) -> &D {
-            &*self
-        }
-    }
-
-    impl<D> AsMut<D> for Checked<D> {
-        fn as_mut(&mut self) -> &mut D {
-            &mut *self
         }
     }
 }

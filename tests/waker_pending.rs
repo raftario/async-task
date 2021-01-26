@@ -52,19 +52,22 @@ macro_rules! future {
 
 // Creates a schedule function with event counters.
 //
-// Usage: `schedule!(s, chan, SCHED, DROP)`
+// Usage: `schedule!(s, d, chan, SCHED, DATA, DROP)`
 //
 // The schedule function `s` pushes the task into `chan`.
-// When it gets invoked, `SCHED` is incremented.
+// When it gets invoked, `SCHED` and `DATA` are incremented.
 // When it gets dropped, `DROP` is incremented.
+// When it gets dropped, `DROP` is incremented.
+// The user data `d` references `DATA`.
 //
 // Receiver `chan` extracts the task when it is scheduled.
 macro_rules! schedule {
-    ($name:pat, $chan:pat, $sched:ident, $drop:ident) => {
+    ($sched_name:pat, $data_name:pat, $chan:pat, $sched:ident, $data:ident, $drop:ident) => {
         static $drop: AtomicUsize = AtomicUsize::new(0);
         static $sched: AtomicUsize = AtomicUsize::new(0);
+        static $data: AtomicUsize = AtomicUsize::new(0);
 
-        let ($name, $chan) = {
+        let ($sched_name, $data_name, $chan) = {
             let (s, r) = flume::unbounded();
 
             struct Guard(Box<i32>);
@@ -75,14 +78,25 @@ macro_rules! schedule {
                 }
             }
 
+            struct Data(Box<&'static AtomicUsize>);
+
+            impl Drop for Data {
+                fn drop(&mut self) {
+                    $data.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+
             let guard = Guard(Box::new(0));
-            let sched = move |runnable: Runnable| {
+            let sched = move |runnable: Runnable<Data>| {
                 &guard;
                 $sched.fetch_add(1, Ordering::SeqCst);
+                runnable.data().0.fetch_add(1, Ordering::SeqCst);
                 s.send(runnable).unwrap();
             };
 
-            (sched, r)
+            let data = Data(Box::new(&$data));
+
+            (sched, data, r)
         };
     };
 }
@@ -94,8 +108,8 @@ fn ms(ms: u64) -> Duration {
 #[test]
 fn wake_during_run() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, _task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, _task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -107,6 +121,7 @@ fn wake_during_run() {
             runnable.run();
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 2);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 1);
@@ -117,6 +132,7 @@ fn wake_during_run() {
             waker.wake_by_ref();
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 0);
@@ -125,6 +141,7 @@ fn wake_during_run() {
 
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 2);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 1);
@@ -138,8 +155,8 @@ fn wake_during_run() {
 #[test]
 fn cancel_during_run() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -152,6 +169,7 @@ fn cancel_during_run() {
             drop(get_waker());
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
             assert_eq!(chan.len(), 0);
@@ -162,6 +180,7 @@ fn cancel_during_run() {
             drop(task);
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 0);
@@ -170,6 +189,7 @@ fn cancel_during_run() {
 
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
             assert_eq!(chan.len(), 0);
@@ -180,8 +200,8 @@ fn cancel_during_run() {
 #[test]
 fn wake_and_cancel_during_run() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -194,6 +214,7 @@ fn wake_and_cancel_during_run() {
             drop(get_waker());
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
             assert_eq!(chan.len(), 0);
@@ -204,6 +225,7 @@ fn wake_and_cancel_during_run() {
             waker.wake();
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 0);
@@ -211,6 +233,7 @@ fn wake_and_cancel_during_run() {
             drop(task);
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 0);
@@ -219,6 +242,7 @@ fn wake_and_cancel_during_run() {
 
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
             assert_eq!(chan.len(), 0);
@@ -229,8 +253,8 @@ fn wake_and_cancel_during_run() {
 #[test]
 fn cancel_and_wake_during_run() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -243,6 +267,7 @@ fn cancel_and_wake_during_run() {
             drop(get_waker());
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
             assert_eq!(chan.len(), 0);
@@ -253,6 +278,7 @@ fn cancel_and_wake_during_run() {
             drop(task);
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 0);
@@ -260,6 +286,7 @@ fn cancel_and_wake_during_run() {
             waker.wake();
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
             assert_eq!(chan.len(), 0);
@@ -268,6 +295,7 @@ fn cancel_and_wake_during_run() {
 
             assert_eq!(POLL.load(Ordering::SeqCst), 2);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+            assert_eq!(DATA.load(Ordering::SeqCst), 2);
             assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
             assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
             assert_eq!(chan.len(), 0);
@@ -278,8 +306,8 @@ fn cancel_and_wake_during_run() {
 #[test]
 fn drop_last_waker() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -287,6 +315,7 @@ fn drop_last_waker() {
     task.detach();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 0);
+    assert_eq!(DATA.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
     assert_eq!(chan.len(), 0);
@@ -294,6 +323,7 @@ fn drop_last_waker() {
     drop(waker);
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+    assert_eq!(DATA.load(Ordering::SeqCst), 1);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
     assert_eq!(chan.len(), 1);
@@ -301,6 +331,7 @@ fn drop_last_waker() {
     chan.recv().unwrap().run();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+    assert_eq!(DATA.load(Ordering::SeqCst), 2);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
     assert_eq!(chan.len(), 0);
@@ -309,13 +340,14 @@ fn drop_last_waker() {
 #[test]
 fn cancel_last_task() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     drop(get_waker());
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 0);
+    assert_eq!(DATA.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
     assert_eq!(chan.len(), 0);
@@ -323,6 +355,7 @@ fn cancel_last_task() {
     drop(task);
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+    assert_eq!(DATA.load(Ordering::SeqCst), 1);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
     assert_eq!(chan.len(), 1);
@@ -330,6 +363,7 @@ fn cancel_last_task() {
     chan.recv().unwrap().run();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+    assert_eq!(DATA.load(Ordering::SeqCst), 2);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
     assert_eq!(chan.len(), 0);
@@ -338,13 +372,14 @@ fn cancel_last_task() {
 #[test]
 fn drop_last_task() {
     future!(f, get_waker, POLL, DROP_F);
-    schedule!(s, chan, SCHEDULE, DROP_S);
-    let (runnable, task) = async_task::spawn(f, s);
+    schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
+    let (runnable, task) = async_task::spawn_with(f, s, d);
 
     runnable.run();
     drop(get_waker());
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 0);
+    assert_eq!(DATA.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
     assert_eq!(chan.len(), 0);
@@ -352,6 +387,7 @@ fn drop_last_task() {
     task.detach();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+    assert_eq!(DATA.load(Ordering::SeqCst), 1);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 0);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 0);
     assert_eq!(chan.len(), 1);
@@ -359,6 +395,7 @@ fn drop_last_task() {
     chan.recv().unwrap().run();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 1);
+    assert_eq!(DATA.load(Ordering::SeqCst), 2);
     assert_eq!(DROP_F.load(Ordering::SeqCst), 1);
     assert_eq!(DROP_S.load(Ordering::SeqCst), 1);
     assert_eq!(chan.len(), 0);
