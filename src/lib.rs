@@ -19,8 +19,8 @@
 //! # let (runnable, task) = async_task::spawn(future, schedule);
 //! ```
 //!
-//! A task is created using either [`spawn()`], [`spawn_local()`], or [`spawn_unchecked()`] which
-//! return a [`Runnable`] and a [`Task`]:
+//! A task is created using either [`spawn()`], [`spawn_local()`], [`spawn_unchecked()`]
+//! or their `_with` variants which return a [`Runnable`] and a [`Task`]:
 //!
 //! ```
 //! # let (sender, receiver) = flume::unbounded();
