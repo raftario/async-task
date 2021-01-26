@@ -147,7 +147,7 @@ where
     unsafe { spawn_unchecked(future, schedule) }
 }
 
-/// Creates a new thread-local task.
+/// Creates a new thread-local task with associated data.
 ///
 /// This function is a combination of [`spawn_local()`] and [`spawn_with()`],
 /// except it does not require [`Send`] on `data`. The data is wrapped in a
@@ -216,7 +216,8 @@ where
     spawn_unchecked_with(future, schedule, ())
 }
 
-/// Creates a new task without [`Send`], [`Sync`], and `'static` bounds.
+/// Creates a new task with associated data and without [`Send`], [`Sync`], and
+/// `'static` bounds.
 ///
 /// This function is a combination of [`spawn_unchecked()`] and
 /// [`spawn_with()`], except it does not require [`Send`] and `'static` on

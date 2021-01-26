@@ -1,3 +1,8 @@
+# Version 4.1.1
+
+-   Fix `no_std` build
+-   Fix docs
+
 # Version 4.1.0
 
 -   Add associated user data support using `_with` variants.
