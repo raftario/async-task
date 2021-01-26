@@ -65,13 +65,13 @@ pub(crate) fn padding_needed_for(layout: Layout, align: usize) -> usize {
 
 #[cfg(feature = "std")]
 pub(crate) mod checked {
+    use std::fmt;
     use std::future::Future;
     use std::mem::ManuallyDrop;
     use std::ops::{Deref, DerefMut};
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use std::thread::{self, ThreadId};
-    use std::{borrow::Borrow, fmt};
 
     #[inline]
     fn thread_id() -> ThreadId {

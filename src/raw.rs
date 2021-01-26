@@ -106,7 +106,7 @@ where
     /// It is assumed that initially only the `Runnable` and the `Task` exist.
     pub(crate) fn allocate(future: F, schedule: S, data: D) -> NonNull<()> {
         // Compute the layout of the task for allocation. Abort if the computation fails.
-        let task_layout = abort_on_panic(|| Self::task_layout());
+        let task_layout = abort_on_panic(Self::task_layout);
 
         unsafe {
             // Allocate enough space for the entire task.
