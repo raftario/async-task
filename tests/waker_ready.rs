@@ -6,15 +6,15 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
-use async_task::Runnable;
+use async_task_ffi::Runnable;
 use atomic_waker::AtomicWaker;
 
 // Creates a future with event counters.
 //
 // Usage: `future!(f, get_waker, POLL, DROP)`
 //
-// The future `f` always sleeps for 200 ms, and returns `Poll::Ready` the second time it is polled.
-// When it gets polled, `POLL` is incremented.
+// The future `f` always sleeps for 200 ms, and returns `Poll::Ready` the second
+// time it is polled. When it gets polled, `POLL` is incremented.
 // When it gets dropped, `DROP` is incremented.
 //
 // Every time the future is run, it stores the waker into a global variable.
@@ -115,7 +115,7 @@ fn ms(ms: u64) -> Duration {
 fn wake() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (mut runnable, task) = async_task::spawn_with(f, s, d);
+    let (mut runnable, task) = async_task_ffi::spawn_with(f, s, d);
     task.detach();
 
     assert!(chan.is_empty());
@@ -157,7 +157,7 @@ fn wake() {
 fn wake_by_ref() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (mut runnable, task) = async_task::spawn_with(f, s, d);
+    let (mut runnable, task) = async_task_ffi::spawn_with(f, s, d);
     task.detach();
 
     assert!(chan.is_empty());
@@ -200,7 +200,7 @@ fn wake_by_ref() {
 fn clone() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (mut runnable, task) = async_task::spawn_with(f, s, d);
+    let (mut runnable, task) = async_task_ffi::spawn_with(f, s, d);
     task.detach();
 
     runnable.run();
@@ -243,7 +243,7 @@ fn clone() {
 fn wake_dropped() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
     task.detach();
 
     runnable.run();
@@ -278,7 +278,7 @@ fn wake_dropped() {
 fn wake_completed() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
     task.detach();
 
     runnable.run();

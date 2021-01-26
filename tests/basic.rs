@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
-use async_task::Runnable;
+use async_task_ffi::Runnable;
 use smol::future;
 
 // Creates a future with event counters.
@@ -95,7 +95,7 @@ fn try_await<T>(f: impl Future<Output = T>) -> Option<T> {
 fn drop_and_detach() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     assert_eq!(POLL.load(Ordering::SeqCst), 0);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 0);
@@ -122,7 +122,7 @@ fn drop_and_detach() {
 fn detach_and_drop() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     task.detach();
     assert_eq!(POLL.load(Ordering::SeqCst), 0);
@@ -143,7 +143,7 @@ fn detach_and_drop() {
 fn detach_and_run() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     task.detach();
     assert_eq!(POLL.load(Ordering::SeqCst), 0);
@@ -164,7 +164,7 @@ fn detach_and_run() {
 fn run_and_detach() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
@@ -185,7 +185,7 @@ fn run_and_detach() {
 fn cancel_and_run() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     drop(task);
     assert_eq!(POLL.load(Ordering::SeqCst), 0);
@@ -206,7 +206,7 @@ fn cancel_and_run() {
 fn run_and_cancel() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
@@ -227,7 +227,7 @@ fn run_and_cancel() {
 fn cancel_join() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     assert!(try_await(&mut task).is_none());
     assert_eq!(POLL.load(Ordering::SeqCst), 0);
@@ -262,7 +262,8 @@ fn cancel_join() {
 fn schedule() {
     let (s, r) = flume::unbounded();
     let schedule = move |runnable| s.send(runnable).unwrap();
-    let (runnable, _task) = async_task::spawn(future::poll_fn(|_| Poll::<()>::Pending), schedule);
+    let (runnable, _task) =
+        async_task_ffi::spawn(future::poll_fn(|_| Poll::<()>::Pending), schedule);
 
     assert!(r.is_empty());
     runnable.schedule();
@@ -287,7 +288,8 @@ fn schedule_counter() {
         COUNT.fetch_add(1, Ordering::SeqCst);
         s.send(runnable).unwrap();
     };
-    let (runnable, _task) = async_task::spawn(future::poll_fn(|_| Poll::<()>::Pending), schedule);
+    let (runnable, _task) =
+        async_task_ffi::spawn(future::poll_fn(|_| Poll::<()>::Pending), schedule);
     runnable.schedule();
 
     r.recv().unwrap().schedule();
@@ -307,7 +309,7 @@ fn data_counter() {
         s.send(runnable).unwrap();
     };
     let (runnable, _task) =
-        async_task::spawn_with(future::poll_fn(|_| Poll::<()>::Pending), schedule, 0);
+        async_task_ffi::spawn_with(future::poll_fn(|_| Poll::<()>::Pending), schedule, 0);
     runnable.schedule();
 
     r.recv().unwrap().schedule();
@@ -326,7 +328,7 @@ fn drop_inside_schedule() {
     }
     let guard = DropGuard(AtomicUsize::new(0));
 
-    let (runnable, _) = async_task::spawn(async {}, move |runnable| {
+    let (runnable, _) = async_task_ffi::spawn(async {}, move |runnable| {
         assert_eq!(guard.0.load(Ordering::SeqCst), 0);
         drop(runnable);
         assert_eq!(guard.0.load(Ordering::SeqCst), 0);
@@ -338,7 +340,8 @@ fn drop_inside_schedule() {
 fn waker() {
     let (s, r) = flume::unbounded();
     let schedule = move |runnable| s.send(runnable).unwrap();
-    let (runnable, _task) = async_task::spawn(future::poll_fn(|_| Poll::<()>::Pending), schedule);
+    let (runnable, _task) =
+        async_task_ffi::spawn(future::poll_fn(|_| Poll::<()>::Pending), schedule);
 
     assert!(r.is_empty());
     let waker = runnable.waker();

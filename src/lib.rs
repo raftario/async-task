@@ -1,8 +1,12 @@
 //! Task abstraction for building executors.
 //!
-//! To spawn a future onto an executor, we first need to allocate it on the heap and keep some
-//! state attached to it. The state indicates whether the future is ready for polling, waiting to
-//! be woken up, or completed. Such a stateful future is called a *task*.
+//! **This is a fork of [async-task](https://docs.rs/async-task) with
+//! additional features useful for ffi based executors.**
+//!
+//! To spawn a future onto an executor, we first need to allocate it on the
+//! heap and keep some state attached to it. The state indicates whether the
+//! future is ready for polling, waiting to be woken up, or completed. Such a
+//! stateful future is called a *task*.
 //!
 //! All executors have a queue that holds scheduled tasks:
 //!
@@ -16,11 +20,12 @@
 //! # let schedule = move |runnable| sender.send(runnable).unwrap();
 //! #
 //! # // Create a task.
-//! # let (runnable, task) = async_task::spawn(future, schedule);
+//! # let (runnable, task) = async_task_ffi::spawn(future, schedule);
 //! ```
 //!
-//! A task is created using either [`spawn()`], [`spawn_local()`], [`spawn_unchecked()`]
-//! or their `_with` variants which return a [`Runnable`] and a [`Task`]:
+//! A task is created using either [`spawn()`], [`spawn_local()`],
+//! [`spawn_unchecked()`] or their `_with` variants which return a [`Runnable`]
+//! and a [`Task`]:
 //!
 //! ```
 //! # let (sender, receiver) = flume::unbounded();
@@ -32,16 +37,17 @@
 //! let schedule = move |runnable| sender.send(runnable).unwrap();
 //!
 //! // Construct a task.
-//! let (runnable, task) = async_task::spawn(future, schedule);
+//! let (runnable, task) = async_task_ffi::spawn(future, schedule);
 //!
 //! // Push the task into the queue by invoking its schedule function.
 //! runnable.schedule();
 //! ```
 //!
-//! The [`Runnable`] is used to poll the task's future, and the [`Task`] is used to await its
-//! output.
+//! The [`Runnable`] is used to poll the task's future, and the [`Task`] is
+//! used to await its output.
 //!
-//! Finally, we need a loop that takes scheduled tasks from the queue and runs them:
+//! Finally, we need a loop that takes scheduled tasks from the queue and runs
+//! them:
 //!
 //! ```no_run
 //! # let (sender, receiver) = flume::unbounded();
@@ -53,7 +59,7 @@
 //! # let schedule = move |runnable| sender.send(runnable).unwrap();
 //! #
 //! # // Create a task.
-//! # let (runnable, task) = async_task::spawn(future, schedule);
+//! # let (runnable, task) = async_task_ffi::spawn(future, schedule);
 //! #
 //! # // Push the task into the queue by invoking its schedule function.
 //! # runnable.schedule();
@@ -63,9 +69,10 @@
 //! }
 //! ```
 //!
-//! Method [`run()`][`Runnable::run()`] polls the task's future once. Then, the [`Runnable`]
-//! vanishes and only reappears when its [`Waker`][`core::task::Waker`] wakes the task, thus
-//! scheduling it to be run again.
+//! Method [`run()`][`Runnable::run()`] polls the task's future once. Then, the
+//! [`Runnable`] vanishes and only reappears when its
+//! [`Waker`][`core::task::Waker`] wakes the task, thus scheduling it to be run
+//! again.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]

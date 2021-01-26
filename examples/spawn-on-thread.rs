@@ -4,7 +4,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::thread;
 
-use async_task::Task;
+use async_task_ffi::Task;
 use smol::future;
 
 /// Spawns a future on a new dedicated thread.
@@ -22,14 +22,15 @@ where
 
     // Wrap the future into one that disconnects the channel on completion.
     let future = async move {
-        // When the inner future completes, the sender gets dropped and disconnects the channel.
+        // When the inner future completes, the sender gets dropped and disconnects the
+        // channel.
         let _sender = sender;
         future.await
     };
 
     // Create a task that is scheduled by sending it into the channel.
     let schedule = move |runnable| s.upgrade().unwrap().send(runnable).unwrap();
-    let (runnable, task) = async_task::spawn(future, schedule);
+    let (runnable, task) = async_task_ffi::spawn(future, schedule);
 
     // Schedule the task by sending it into the channel.
     runnable.schedule();

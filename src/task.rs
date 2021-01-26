@@ -14,14 +14,15 @@ use crate::state::*;
 ///
 /// A [`Task`] can be awaited to retrieve the output of its future.
 ///
-/// Dropping a [`Task`] cancels it, which means its future won't be polled again. To drop the
-/// [`Task`] handle without canceling it, use [`detach()`][`Task::detach()`] instead. To cancel a
-/// task gracefully and wait until it is fully destroyed, use the [`cancel()`][Task::cancel()]
-/// method.
+/// Dropping a [`Task`] cancels it, which means its future won't be polled
+/// again. To drop the [`Task`] handle without canceling it, use
+/// [`detach()`][`Task::detach()`] instead. To cancel a task gracefully and wait
+/// until it is fully destroyed, use the [`cancel()`][Task::cancel()] method.
 ///
-/// Note that canceling a task actually wakes it and reschedules one last time. Then, the executor
-/// can destroy the task by simply dropping its [`Runnable`][`super::Runnable`] or by invoking
-/// [`run()`][`super::Runnable::run()`].
+/// Note that canceling a task actually wakes it and reschedules one last time.
+/// Then, the executor can destroy the task by simply dropping its
+/// [`Runnable`][`super::Runnable`] or by invoking [`run()`][`super::Runnable::
+/// run()`].
 ///
 /// # Examples
 ///
@@ -90,11 +91,12 @@ impl<T> Task<T> {
 
     /// Cancels the task and waits for it to stop running.
     ///
-    /// Returns the task's output if it was completed just before it got canceled, or [`None`] if
-    /// it didn't complete.
+    /// Returns the task's output if it was completed just before it got
+    /// canceled, or [`None`] if it didn't complete.
     ///
-    /// While it's possible to simply drop the [`Task`] to cancel it, this is a cleaner way of
-    /// canceling because it also waits for the task to stop running.
+    /// While it's possible to simply drop the [`Task`] to cancel it, this is a
+    /// cleaner way of canceling because it also waits for the task to stop
+    /// running.
     ///
     /// # Examples
     ///
@@ -150,7 +152,8 @@ impl<T> Task<T> {
 
     /// Constructs a [`Task`] from a raw task pointer.
     ///
-    /// The raw pointer must have been previously returned by a call to [`into_raw`].
+    /// The raw pointer must have been previously returned by a call to
+    /// [`into_raw`].
     ///
     /// # Safety
     ///
@@ -219,9 +222,9 @@ impl<T> Task<T> {
             // A place where the output will be stored in case it needs to be dropped.
             let mut output = None;
 
-            // Optimistically assume the `Task` is being detached just after creating the task.
-            // This is a common case so if the `Task` is datached, the overhead of it is only one
-            // compare-exchange operation.
+            // Optimistically assume the `Task` is being detached just after creating the
+            // task. This is a common case so if the `Task` is datached, the
+            // overhead of it is only one compare-exchange operation.
             if let Err(mut state) = (*header).state.compare_exchange_weak(
                 SCHEDULED | TASK | REFERENCE,
                 SCHEDULED | REFERENCE,
@@ -295,8 +298,8 @@ impl<T> Task<T> {
     ///
     /// A task becomes closed in the following cases:
     ///
-    /// 1. It gets canceled by `Runnable::drop()`, `Task::drop()`, or `Task::cancel()`.
-    /// 2. Its output gets awaited by the `Task`.
+    /// 1. It gets canceled by `Runnable::drop()`, `Task::drop()`, or
+    /// `Task::cancel()`. 2. Its output gets awaited by the `Task`.
     /// 3. It panics while polling the future.
     /// 4. It is completed and the `Task` gets dropped.
     fn poll_task(&mut self, cx: &mut Context<'_>) -> Poll<Option<T>> {
@@ -352,7 +355,8 @@ impl<T> Task<T> {
                     }
                 }
 
-                // Since the task is now completed, mark it as closed in order to grab its output.
+                // Since the task is now completed, mark it as closed in order to grab its
+                // output.
                 match (*header).state.compare_exchange(
                     state,
                     state | CLOSED,

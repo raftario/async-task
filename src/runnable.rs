@@ -14,21 +14,24 @@ use crate::Task;
 
 /// Creates a new task.
 ///
-/// The returned [`Runnable`] is used to poll the `future`, and the [`Task`] is used to await its
-/// output.
+/// The returned [`Runnable`] is used to poll the `future`, and the [`Task`] is
+/// used to await its output.
 ///
-/// Method [`run()`][`Runnable::run()`] polls the task's future once. Then, the [`Runnable`]
-/// vanishes and only reappears when its [`Waker`] wakes the task, thus scheduling it to be run
-/// again.
+/// Method [`run()`][`Runnable::run()`] polls the task's future once. Then, the
+/// [`Runnable`] vanishes and only reappears when its [`Waker`] wakes the task,
+/// thus scheduling it to be run again.
 ///
-/// When the task is woken, its [`Runnable`] is passed to the `schedule` function.
-/// The `schedule` function should not attempt to run the [`Runnable`] nor to drop it. Instead, it
-/// should push it into a task queue so that it can be processed later.
+/// When the task is woken, its [`Runnable`] is passed to the `schedule`
+/// function. The `schedule` function should not attempt to run the [`Runnable`]
+/// nor to drop it. Instead, it should push it into a task queue so that it can
+/// be processed later.
 ///
-/// If you need to spawn a future that does not implement [`Send`] or isn't `'static`, consider
-/// using [`spawn_local()`] or [`spawn_unchecked()`] instead.
+/// If you need to spawn a future that does not implement [`Send`] or isn't
+/// `'static`, consider using [`spawn_local()`] or [`spawn_unchecked()`]
+/// instead.
 ///
-/// If you need to attach arbitrary data to the task, consider using [`spawn_with()`].
+/// If you need to attach arbitrary data to the task, consider using
+/// [`spawn_with()`].
 ///
 /// # Examples
 ///
@@ -43,7 +46,7 @@ use crate::Task;
 /// let schedule = move |runnable| s.send(runnable).unwrap();
 ///
 /// // Create a task with the future and the schedule function.
-/// let (runnable, task) = async_task::spawn(future, schedule);
+/// let (runnable, task) = async_task_ffi::spawn(future, schedule);
 /// ```
 pub fn spawn<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
 where
@@ -56,16 +59,17 @@ where
 
 /// Creates a new task with associated data.
 ///
-/// This function is the same as [`spawn()`], except it makes it possible to attach
-/// arbitrary data to the task. This makes it possible to benefit from the single
-/// allocation design of `async_task` without having to write a specialized implementation.
+/// This function is the same as [`spawn()`], except it makes it possible to
+/// attach arbitrary data to the task. This makes it possible to benefit from
+/// the single allocation design of `async_task_ffi` without having to write a
+/// specialized implementation.
 ///
 /// The data can be accessed using [`Runnable::data`] or [`Runnable::data_mut`].
 ///
 /// # Examples
 ///
 /// ```
-/// use async_task::Runnable;
+/// use async_task_ffi::Runnable;
 ///
 /// // The future inside the task.
 /// let future = async {
@@ -82,7 +86,7 @@ where
 ///
 /// // Create a task with the future, the schedule function
 /// // and the initial data.
-/// let (runnable, task) = async_task::spawn_with(future, schedule, 0);
+/// let (runnable, task) = async_task_ffi::spawn_with(future, schedule, 0);
 /// ```
 pub fn spawn_with<F, S, D>(future: F, schedule: S, data: D) -> (Runnable<D>, Task<F::Output>)
 where
@@ -96,15 +100,17 @@ where
 
 /// Creates a new thread-local task.
 ///
-/// This function is same as [`spawn()`], except it does not require [`Send`] on `future`. If the
-/// [`Runnable`] is used or dropped on another thread, a panic will occur.
+/// This function is same as [`spawn()`], except it does not require [`Send`] on
+/// `future`. If the [`Runnable`] is used or dropped on another thread, a panic
+/// will occur.
 ///
-/// This function is only available when the `std` feature for this crate is enabled.
+/// This function is only available when the `std` feature for this crate is
+/// enabled.
 ///
 /// # Examples
 ///
 /// ```
-/// use async_task::Runnable;
+/// use async_task_ffi::Runnable;
 /// use flume::{Receiver, Sender};
 /// use std::rc::Rc;
 ///
@@ -124,7 +130,7 @@ where
 /// let schedule = move |runnable| s.send(runnable).unwrap();
 ///
 /// // Create a task with the future and the schedule function.
-/// let (runnable, task) = async_task::spawn_local(future, schedule);
+/// let (runnable, task) = async_task_ffi::spawn_local(future, schedule);
 /// ```
 #[cfg(feature = "std")]
 pub fn spawn_local<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
@@ -143,10 +149,11 @@ where
 ///
 /// This function is a combination of [`spawn_local()`] and [`spawn_with()`],
 /// except it does not require [`Send`] on `data`. The data is wrapped in a
-/// type that implements [`Deref`][std::ops::Deref] and [`DerefMut`][std::opts::DerefMut]
-/// and panics if used from another thread.
+/// type that implements [`Deref`][std::ops::Deref] and
+/// [`DerefMut`][std::opts::DerefMut] and panics if used from another thread.
 ///
-/// This function is only available when the `std` feature for this crate is enabled.
+/// This function is only available when the `std` feature for this crate is
+/// enabled.
 #[cfg(feature = "std")]
 pub fn spawn_local_with<F, S, D>(
     future: F,
@@ -170,17 +177,19 @@ where
 
 /// Creates a new task without [`Send`], [`Sync`], and `'static` bounds.
 ///
-/// This function is same as [`spawn()`], except it does not require [`Send`], [`Sync`], and
-/// `'static` on `future` and `schedule`.
+/// This function is same as [`spawn()`], except it does not require [`Send`],
+/// [`Sync`], and `'static` on `future` and `schedule`.
 ///
 /// # Safety
 ///
-/// - If `future` is not [`Send`], its [`Runnable`] must be used and dropped on the original
-///   thread.
-/// - If `future` is not `'static`, borrowed variables must outlive its [`Runnable`].
-/// - If `schedule` is not [`Send`] and [`Sync`], the task's [`Waker`] must be used and dropped on
+/// - If `future` is not [`Send`], its [`Runnable`] must be used and dropped on
 ///   the original thread.
-/// - If `schedule` is not `'static`, borrowed variables must outlive the task's [`Waker`].
+/// - If `future` is not `'static`, borrowed variables must outlive its
+///   [`Runnable`].
+/// - If `schedule` is not [`Send`] and [`Sync`], the task's [`Waker`] must be
+///   used and dropped on the original thread.
+/// - If `schedule` is not `'static`, borrowed variables must outlive the task's
+///   [`Waker`].
 ///
 /// # Examples
 ///
@@ -195,7 +204,7 @@ where
 /// let schedule = move |runnable| s.send(runnable).unwrap();
 ///
 /// // Create a task with the future and the schedule function.
-/// let (runnable, task) = unsafe { async_task::spawn_unchecked(future, schedule) };
+/// let (runnable, task) = unsafe { async_task_ffi::spawn_unchecked(future, schedule) };
 /// ```
 pub unsafe fn spawn_unchecked<F, S>(future: F, schedule: S) -> (Runnable, Task<F::Output>)
 where
@@ -207,14 +216,17 @@ where
 
 /// Creates a new task without [`Send`], [`Sync`], and `'static` bounds.
 ///
-/// This function is a combination of [`spawn_unchecked()`] and [`spawn_with()`],
-/// except it does not require [`Send`] and `'static` on `data`.
+/// This function is a combination of [`spawn_unchecked()`] and
+/// [`spawn_with()`], except it does not require [`Send`] and `'static` on
+/// `data`.
 ///
 /// # Safety
 ///
 /// - All of the requirements from [`spawn_unchecked`].
-/// - If `data` is not [`Send`], it must be used and dropped on the original thread.
-/// - If `data` is not `'static`, borrowed variables must outlive its [`Runnable`].
+/// - If `data` is not [`Send`], it must be used and dropped on the original
+///   thread.
+/// - If `data` is not `'static`, borrowed variables must outlive its
+///   [`Runnable`].
 pub unsafe fn spawn_unchecked_with<F, S, D>(
     future: F,
     schedule: S,
@@ -245,20 +257,20 @@ where
 
 /// A handle to a runnable task.
 ///
-/// Every spawned task has a single [`Runnable`] handle, which only exists when the task is
-/// scheduled for running.
+/// Every spawned task has a single [`Runnable`] handle, which only exists when
+/// the task is scheduled for running.
 ///
-/// Method [`run()`][`Runnable::run()`] polls the task's future once. Then, the [`Runnable`]
-/// vanishes and only reappears when its [`Waker`] wakes the task, thus scheduling it to be run
-/// again.
+/// Method [`run()`][`Runnable::run()`] polls the task's future once. Then, the
+/// [`Runnable`] vanishes and only reappears when its [`Waker`] wakes the task,
+/// thus scheduling it to be run again.
 ///
-/// Dropping a [`Runnable`] cancels the task, which means its future won't be polled again, and
-/// awaiting the [`Task`] after that will result in a panic.
+/// Dropping a [`Runnable`] cancels the task, which means its future won't be
+/// polled again, and awaiting the [`Task`] after that will result in a panic.
 ///
 /// # Examples
 ///
 /// ```
-/// use async_task::Runnable;
+/// use async_task_ffi::Runnable;
 /// use once_cell::sync::Lazy;
 /// use std::{panic, thread};
 ///
@@ -275,7 +287,7 @@ where
 ///
 /// // Create a task with a simple future.
 /// let schedule = |runnable| QUEUE.send(runnable).unwrap();
-/// let (runnable, task) = async_task::spawn(async { 1 + 2 }, schedule);
+/// let (runnable, task) = async_task_ffi::spawn(async { 1 + 2 }, schedule);
 ///
 /// // Schedule the task and await its output.
 /// runnable.schedule();
@@ -300,7 +312,8 @@ impl<D: std::panic::RefUnwindSafe> std::panic::RefUnwindSafe for Runnable<D> {}
 impl<D> Runnable<D> {
     /// Schedules the task.
     ///
-    /// This is a convenience method that passes the [`Runnable`] to the schedule function.
+    /// This is a convenience method that passes the [`Runnable`] to the
+    /// schedule function.
     ///
     /// # Examples
     ///
@@ -310,7 +323,7 @@ impl<D> Runnable<D> {
     /// let schedule = move |runnable| s.send(runnable).unwrap();
     ///
     /// // Create a task with a simple future and the schedule function.
-    /// let (runnable, task) = async_task::spawn(async {}, schedule);
+    /// let (runnable, task) = async_task_ffi::spawn(async {}, schedule);
     ///
     /// // Schedule the task.
     /// assert_eq!(r.len(), 0);
@@ -329,17 +342,18 @@ impl<D> Runnable<D> {
 
     /// Runs the task by polling its future.
     ///
-    /// Returns `true` if the task was woken while running, in which case the [`Runnable`] gets
-    /// rescheduled at the end of this method invocation. Otherwise, returns `false` and the
-    /// [`Runnable`] vanishes until the task is woken.
-    /// The return value is just a hint: `true` usually indicates that the task has yielded, i.e.
-    /// it woke itself and then gave the control back to the executor.
+    /// Returns `true` if the task was woken while running, in which case the
+    /// [`Runnable`] gets rescheduled at the end of this method invocation.
+    /// Otherwise, returns `false` and the [`Runnable`] vanishes until the
+    /// task is woken. The return value is just a hint: `true` usually
+    /// indicates that the task has yielded, i.e. it woke itself and then
+    /// gave the control back to the executor.
     ///
-    /// If the [`Task`] handle was dropped or if [`cancel()`][`Task::cancel()`] was called, then
-    /// this method simply destroys the task.
+    /// If the [`Task`] handle was dropped or if [`cancel()`][`Task::cancel()`]
+    /// was called, then this method simply destroys the task.
     ///
-    /// If the polled future panics, this method propagates the panic, and awaiting the [`Task`]
-    /// after that will also result in a panic.
+    /// If the polled future panics, this method propagates the panic, and
+    /// awaiting the [`Task`] after that will also result in a panic.
     ///
     /// # Examples
     ///
@@ -349,7 +363,7 @@ impl<D> Runnable<D> {
     /// let schedule = move |runnable| s.send(runnable).unwrap();
     ///
     /// // Create a task with a simple future and the schedule function.
-    /// let (runnable, task) = async_task::spawn(async { 1 + 2 }, schedule);
+    /// let (runnable, task) = async_task_ffi::spawn(async { 1 + 2 }, schedule);
     ///
     /// // Run the task and check its output.
     /// runnable.run();
@@ -375,7 +389,7 @@ impl<D> Runnable<D> {
     /// let schedule = move |runnable| s.send(runnable).unwrap();
     ///
     /// // Create a task with a simple future and the schedule function.
-    /// let (runnable, task) = async_task::spawn(future::pending::<()>(), schedule);
+    /// let (runnable, task) = async_task_ffi::spawn(future::pending::<()>(), schedule);
     ///
     /// // Take a waker and run the task.
     /// let waker = runnable.waker();
@@ -403,7 +417,7 @@ impl<D> Runnable<D> {
     /// # Examples
     ///
     /// ```
-    /// use async_task::Runnable;
+    /// use async_task_ffi::Runnable;
     ///
     /// // A function that schedules the task and prints a message.
     /// let (s, r) = flume::unbounded();
@@ -413,7 +427,7 @@ impl<D> Runnable<D> {
     /// };
     ///
     /// // Create a task with a simple future, the schedule function and a message.
-    /// let (runnable, task) = async_task::spawn_with(
+    /// let (runnable, task) = async_task_ffi::spawn_with(
     ///     async {},
     ///     schedule,
     ///     "Hello from the schedule function!",
@@ -439,7 +453,7 @@ impl<D> Runnable<D> {
     /// # Examples
     ///
     /// ```
-    /// use async_task::Runnable;
+    /// use async_task_ffi::Runnable;
     ///
     /// // A function that schedules the task and
     /// // counts the amount of times it has been.
@@ -453,7 +467,7 @@ impl<D> Runnable<D> {
     ///
     /// // Create a task with a simple future,
     /// // the schedule function and the initial counter value.
-    /// let (mut runnable, task) = async_task::spawn_with(async {}, schedule, 0);
+    /// let (mut runnable, task) = async_task_ffi::spawn_with(async {}, schedule, 0);
     ///
     /// // Schedule the task.
     /// *runnable.data_mut() += 1;
@@ -472,7 +486,8 @@ impl<D> Runnable<D> {
     /// Consumes the [`Runnable`], returning a pointer to the raw task.
     ///
     /// The raw pointer must eventually be converted back into a [`Runnable`]
-    /// by calling [`Runnable::from_raw`] in order to free up the task's resources.
+    /// by calling [`Runnable::from_raw`] in order to free up the task's
+    /// resources.
     pub fn into_raw(self) -> *mut () {
         let ptr = self.ptr;
         mem::forget(self);
@@ -481,12 +496,13 @@ impl<D> Runnable<D> {
 
     /// Constructs a [`Runnable`] from a raw task pointer.
     ///
-    /// The raw pointer must have been previously returned by a call to [`into_raw`].
+    /// The raw pointer must have been previously returned by a call to
+    /// [`into_raw`].
     ///
     /// # Safety
     ///
-    /// This function has the same safety requirements as [`spawn_unchecked`] and [`spawn_unchecked_with`]
-    /// on top of the previously mentioned one.
+    /// This function has the same safety requirements as [`spawn_unchecked`]
+    /// and [`spawn_unchecked_with`] on top of the previously mentioned one.
     pub unsafe fn from_raw(ptr: *mut ()) -> Runnable<D> {
         Runnable {
             ptr: NonNull::new_unchecked(ptr),

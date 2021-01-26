@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
-use async_task::Runnable;
+use async_task_ffi::Runnable;
 use easy_parallel::Parallel;
 use smol::future;
 
@@ -112,7 +112,7 @@ fn ms(ms: u64) -> Duration {
 fn cancel_during_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -158,7 +158,7 @@ fn cancel_during_run() {
 fn join_during_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -193,7 +193,7 @@ fn join_during_run() {
 fn try_join_during_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -224,7 +224,7 @@ fn try_join_during_run() {
 fn detach_during_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {

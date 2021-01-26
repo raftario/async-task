@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
-use async_task::Runnable;
+use async_task_ffi::Runnable;
 use easy_parallel::Parallel;
 use smol::future;
 
@@ -115,7 +115,7 @@ fn ms(ms: u64) -> Duration {
 fn drop_and_join() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     assert_eq!(DROP_T.load(Ordering::SeqCst), 0);
 
@@ -136,7 +136,7 @@ fn drop_and_join() {
 fn run_and_join() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     assert_eq!(DROP_T.load(Ordering::SeqCst), 0);
 
@@ -157,7 +157,7 @@ fn run_and_join() {
 fn detach_and_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     assert_eq!(DROP_T.load(Ordering::SeqCst), 0);
 
@@ -178,7 +178,7 @@ fn detach_and_run() {
 fn join_twice() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     assert_eq!(DROP_T.load(Ordering::SeqCst), 0);
 
@@ -212,7 +212,7 @@ fn join_twice() {
 fn join_and_cancel() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -245,7 +245,7 @@ fn join_and_cancel() {
 fn join_and_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -278,7 +278,7 @@ fn join_and_run() {
 fn try_join_and_run_and_join() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -320,7 +320,7 @@ fn try_join_and_run_and_join() {
 fn try_join_and_cancel_and_run() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -357,7 +357,7 @@ fn try_join_and_cancel_and_run() {
 fn try_join_and_run_and_cancel() {
     future!(f, POLL, DROP_F, DROP_T);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -411,18 +411,18 @@ fn await_output() {
     }
 
     for i in 0..10 {
-        let (runnable, task) = async_task::spawn(Fut::new(i), drop);
+        let (runnable, task) = async_task_ffi::spawn(Fut::new(i), drop);
         runnable.run();
         assert_eq!(future::block_on(task), i);
     }
 
     for i in 0..10 {
-        let (runnable, task) = async_task::spawn(Fut::new(vec![7; i]), drop);
+        let (runnable, task) = async_task_ffi::spawn(Fut::new(vec![7; i]), drop);
         runnable.run();
         assert_eq!(future::block_on(task), vec![7; i]);
     }
 
-    let (runnable, task) = async_task::spawn(Fut::new("foo".to_string()), drop);
+    let (runnable, task) = async_task_ffi::spawn(Fut::new("foo".to_string()), drop);
     runnable.run();
     assert_eq!(future::block_on(task), "foo");
 }

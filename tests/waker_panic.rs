@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
-use async_task::Runnable;
+use async_task_ffi::Runnable;
 use atomic_waker::AtomicWaker;
 use easy_parallel::Parallel;
 use smol::future;
@@ -16,8 +16,8 @@ use smol::future;
 //
 // Usage: `future!(f, get_waker, POLL, DROP)`
 //
-// The future `f` always sleeps for 200 ms, and panics the second time it is polled.
-// When it gets polled, `POLL` is incremented.
+// The future `f` always sleeps for 200 ms, and panics the second time it is
+// polled. When it gets polled, `POLL` is incremented.
 // When it gets dropped, `DROP` is incremented.
 //
 // Every time the future is run, it stores the waker into a global variable.
@@ -122,7 +122,7 @@ fn try_await<T>(f: impl Future<Output = T>) -> Option<T> {
 fn wake_during_run() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -168,7 +168,7 @@ fn wake_during_run() {
 fn cancel_during_run() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -213,7 +213,7 @@ fn cancel_during_run() {
 fn wake_and_cancel_during_run() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -266,7 +266,7 @@ fn wake_and_cancel_during_run() {
 fn cancel_and_wake_during_run() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     let waker = get_waker();
@@ -319,7 +319,7 @@ fn cancel_and_wake_during_run() {
 fn panic_and_poll() {
     future!(f, get_waker, POLL, DROP_F);
     schedule!(s, d, chan, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     runnable.run();
     get_waker().wake();

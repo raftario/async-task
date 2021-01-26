@@ -4,7 +4,7 @@ use std::future::Future;
 use std::panic::catch_unwind;
 use std::thread;
 
-use async_task::{Runnable, Task};
+use async_task_ffi::{Runnable, Task};
 use once_cell::sync::Lazy;
 use smol::future;
 
@@ -31,7 +31,7 @@ where
 
     // Create a task that is scheduled by pushing it into the queue.
     let schedule = |runnable| QUEUE.send(runnable).unwrap();
-    let (runnable, task) = async_task::spawn(future, schedule);
+    let (runnable, task) = async_task_ffi::spawn(future, schedule);
 
     // Schedule the task by pushing it into the queue.
     runnable.schedule();

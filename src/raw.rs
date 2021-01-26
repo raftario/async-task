@@ -105,7 +105,8 @@ where
     ///
     /// It is assumed that initially only the `Runnable` and the `Task` exist.
     pub(crate) fn allocate(future: F, schedule: S, data: D) -> NonNull<()> {
-        // Compute the layout of the task for allocation. Abort if the computation fails.
+        // Compute the layout of the task for allocation. Abort if the computation
+        // fails.
         let task_layout = abort_on_panic(Self::task_layout);
 
         unsafe {
@@ -197,8 +198,9 @@ where
 
     /// Wakes a waker.
     unsafe fn wake(ptr: *const ()) {
-        // This is just an optimization. If the schedule function has captured variables, then
-        // we'll do less reference counting if we wake the waker by reference and then drop it.
+        // This is just an optimization. If the schedule function has captured
+        // variables, then we'll do less reference counting if we wake the waker
+        // by reference and then drop it.
         if mem::size_of::<S>() > 0 {
             Self::wake_by_ref(ptr);
             Self::drop_waker(ptr);
@@ -217,8 +219,9 @@ where
                 break;
             }
 
-            // If the task is already scheduled, we just need to synchronize with the thread that
-            // will run the task by "publishing" our current view of the memory.
+            // If the task is already scheduled, we just need to synchronize with the thread
+            // that will run the task by "publishing" our current view of the
+            // memory.
             if state & SCHEDULED != 0 {
                 // Update the state without actually modifying it.
                 match (*raw.header).state.compare_exchange_weak(
@@ -273,8 +276,9 @@ where
                 break;
             }
 
-            // If the task is already scheduled, we just need to synchronize with the thread that
-            // will run the task by "publishing" our current view of the memory.
+            // If the task is already scheduled, we just need to synchronize with the thread
+            // that will run the task by "publishing" our current view of the
+            // memory.
             if state & SCHEDULED != 0 {
                 // Update the state without actually modifying it.
                 match (*raw.header).state.compare_exchange_weak(
@@ -331,8 +335,9 @@ where
     unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
         let raw = Self::from_ptr(ptr);
 
-        // Increment the reference count. With any kind of reference-counted data structure,
-        // relaxed ordering is appropriate when incrementing the counter.
+        // Increment the reference count. With any kind of reference-counted data
+        // structure, relaxed ordering is appropriate when incrementing the
+        // counter.
         let state = (*raw.header).state.fetch_add(REFERENCE, Ordering::Relaxed);
 
         // If the reference count overflowed, abort.
@@ -345,9 +350,10 @@ where
 
     /// Drops a waker.
     ///
-    /// This function will decrement the reference count. If it drops down to zero, the associated
-    /// `Task` has been dropped too, and the task has not been completed, then it will get
-    /// scheduled one more time so that its future gets dropped by the executor.
+    /// This function will decrement the reference count. If it drops down to
+    /// zero, the associated `Task` has been dropped too, and the task has
+    /// not been completed, then it will get scheduled one more time so that
+    /// its future gets dropped by the executor.
     #[inline]
     unsafe fn drop_waker(ptr: *const ()) {
         let raw = Self::from_ptr(ptr);
@@ -355,12 +361,12 @@ where
         // Decrement the reference count.
         let new = (*raw.header).state.fetch_sub(REFERENCE, Ordering::AcqRel) - REFERENCE;
 
-        // If this was the last reference to the task and the `Task` has been dropped too,
-        // then we need to decide how to destroy the task.
+        // If this was the last reference to the task and the `Task` has been dropped
+        // too, then we need to decide how to destroy the task.
         if new & !(REFERENCE - 1) == 0 && new & TASK == 0 {
             if new & (COMPLETED | CLOSED) == 0 {
-                // If the task was not completed nor closed, close it and schedule one more time so
-                // that its future gets dropped by the executor.
+                // If the task was not completed nor closed, close it and schedule one more time
+                // so that its future gets dropped by the executor.
                 (*raw.header)
                     .state
                     .store(SCHEDULED | CLOSED | REFERENCE, Ordering::Release);
@@ -374,8 +380,9 @@ where
 
     /// Drops a task reference (`Runnable` or `Waker`).
     ///
-    /// This function will decrement the reference count. If it drops down to zero and the
-    /// associated `Task` handle has been dropped too, then the task gets destroyed.
+    /// This function will decrement the reference count. If it drops down to
+    /// zero and the associated `Task` handle has been dropped too, then the
+    /// task gets destroyed.
     #[inline]
     unsafe fn drop_ref(ptr: *const ()) {
         let raw = Self::from_ptr(ptr);
@@ -383,8 +390,8 @@ where
         // Decrement the reference count.
         let new = (*raw.header).state.fetch_sub(REFERENCE, Ordering::AcqRel) - REFERENCE;
 
-        // If this was the last reference to the task and the `Task` has been dropped too,
-        // then destroy the task.
+        // If this was the last reference to the task and the `Task` has been dropped
+        // too, then destroy the task.
         if new & !(REFERENCE - 1) == 0 && new & TASK == 0 {
             Self::destroy(ptr);
         }
@@ -392,13 +399,14 @@ where
 
     /// Schedules a task for running.
     ///
-    /// This function doesn't modify the state of the task. It only passes the task reference to
-    /// its schedule function.
+    /// This function doesn't modify the state of the task. It only passes the
+    /// task reference to its schedule function.
     unsafe fn schedule(ptr: *const ()) {
         let raw = Self::from_ptr(ptr);
 
-        // If the schedule function has captured variables, create a temporary waker that prevents
-        // the task from getting deallocated while the function is being invoked.
+        // If the schedule function has captured variables, create a temporary waker
+        // that prevents the task from getting deallocated while the function is
+        // being invoked.
         let _waker;
         if mem::size_of::<S>() > 0 {
             _waker = Waker::from_raw(Self::clone_waker(ptr));
@@ -436,8 +444,8 @@ where
 
     /// Cleans up task's resources and deallocates it.
     ///
-    /// The schedule function will be dropped, and the task will then get deallocated.
-    /// The task must be closed before this function is called.
+    /// The schedule function will be dropped, and the task will then get
+    /// deallocated. The task must be closed before this function is called.
     #[inline]
     unsafe fn destroy(ptr: *const ()) {
         let raw = Self::from_ptr(ptr);
@@ -457,12 +465,13 @@ where
 
     /// Runs a task.
     ///
-    /// If polling its future panics, the task will be closed and the panic will be propagated into
-    /// the caller.
+    /// If polling its future panics, the task will be closed and the panic will
+    /// be propagated into the caller.
     unsafe fn run(ptr: *const ()) -> bool {
         let raw = Self::from_ptr(ptr);
 
-        // Create a context from the raw task pointer and the vtable inside the its header.
+        // Create a context from the raw task pointer and the vtable inside the its
+        // header.
         let waker = ManuallyDrop::new(Waker::from_raw(RawWaker::new(ptr, &Self::RAW_WAKER_VTABLE)));
         let cx = &mut Context::from_waker(&waker);
 
@@ -510,8 +519,8 @@ where
             }
         }
 
-        // Poll the inner future, but surround it with a guard that closes the task in case polling
-        // panics.
+        // Poll the inner future, but surround it with a guard that closes the task in
+        // case polling panics.
         let guard = Guard(raw);
         let poll = <F as Future>::poll(Pin::new_unchecked(&mut *raw.future), cx);
         mem::forget(guard);

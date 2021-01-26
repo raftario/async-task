@@ -23,15 +23,17 @@ pub(crate) struct Header {
 
     /// The virtual table.
     ///
-    /// In addition to the actual waker virtual table, it also contains pointers to several other
-    /// methods necessary for bookkeeping the heap-allocated task.
+    /// In addition to the actual waker virtual table, it also contains pointers
+    /// to several other methods necessary for bookkeeping the
+    /// heap-allocated task.
     pub(crate) vtable: &'static TaskVTable,
 }
 
 impl Header {
     /// Notifies the awaiter blocked on this task.
     ///
-    /// If the awaiter is the same as the current waker, it will not be notified.
+    /// If the awaiter is the same as the current waker, it will not be
+    /// notified.
     #[inline]
     pub(crate) fn notify(&self, current: Option<&Waker>) {
         if let Some(w) = self.take(current) {
@@ -41,7 +43,8 @@ impl Header {
 
     /// Takes the awaiter blocked on this task.
     ///
-    /// If there is no awaiter or if it is the same as the current waker, returns `None`.
+    /// If there is no awaiter or if it is the same as the current waker,
+    /// returns `None`.
     #[inline]
     pub(crate) fn take(&self, current: Option<&Waker>) -> Option<Waker> {
         // Set the bit indicating that the task is notifying its awaiter.
@@ -71,7 +74,8 @@ impl Header {
 
     /// Registers a new awaiter blocked on this task.
     ///
-    /// This method is called when `Task` is polled and it has not yet completed.
+    /// This method is called when `Task` is polled and it has not yet
+    /// completed.
     #[inline]
     pub(crate) fn register(&self, waker: &Waker) {
         // Load the state and synchronize with it.
@@ -109,8 +113,8 @@ impl Header {
             abort_on_panic(|| (*self.awaiter.get()) = Some(waker.clone()));
         }
 
-        // This variable will contain the newly registered waker if a notification comes in before
-        // we complete registration.
+        // This variable will contain the newly registered waker if a notification comes
+        // in before we complete registration.
         let mut waker = None;
 
         loop {
@@ -121,8 +125,9 @@ impl Header {
                 }
             }
 
-            // The new state is not being notified nor registered, but there might or might not be
-            // an awaiter depending on whether there was a concurrent notification.
+            // The new state is not being notified nor registered, but there might or might
+            // not be an awaiter depending on whether there was a concurrent
+            // notification.
             let new = if waker.is_none() {
                 (state & !NOTIFYING & !REGISTERING) | AWAITER
             } else {

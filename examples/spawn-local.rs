@@ -4,7 +4,7 @@ use std::cell::Cell;
 use std::future::Future;
 use std::rc::Rc;
 
-use async_task::{Runnable, Task};
+use async_task_ffi::{Runnable, Task};
 
 thread_local! {
     // A queue that holds scheduled tasks.
@@ -19,7 +19,7 @@ where
 {
     // Create a task that is scheduled by pushing itself into the queue.
     let schedule = |runnable| QUEUE.with(|(s, _)| s.send(runnable).unwrap());
-    let (runnable, task) = async_task::spawn_local(future, schedule);
+    let (runnable, task) = async_task_ffi::spawn_local(future, schedule);
 
     // Schedule the task by pushing it into the queue.
     runnable.schedule();

@@ -52,10 +52,11 @@ pub(crate) fn extend(a: Layout, b: Layout) -> (Layout, usize) {
     (layout, offset)
 }
 
-/// Returns the padding after `layout` that aligns the following address to `align`.
+/// Returns the padding after `layout` that aligns the following address to
+/// `align`.
 ///
-/// This function was adapted from the currently unstable `Layout::padding_needed_for()`:
-/// https://doc.rust-lang.org/nightly/std/alloc/struct.Layout.html#method.padding_needed_for
+/// This function was adapted from the currently unstable
+/// `Layout::padding_needed_for()`: https://doc.rust-lang.org/nightly/std/alloc/struct.Layout.html#method.padding_needed_for
 #[inline]
 pub(crate) fn padding_needed_for(layout: Layout, align: usize) -> usize {
     let len = layout.size();

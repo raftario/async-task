@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
-use async_task::Runnable;
+use async_task_ffi::Runnable;
 use easy_parallel::Parallel;
 use smol::future;
 
@@ -100,7 +100,7 @@ fn ms(ms: u64) -> Duration {
 fn cancel_during_run() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -128,7 +128,7 @@ fn cancel_during_run() {
 fn run_and_join() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     assert!(catch_unwind(|| runnable.run()).is_err());
     assert_eq!(POLL.load(Ordering::SeqCst), 1);
@@ -149,9 +149,9 @@ fn run_and_join() {
 fn try_join_and_run_and_join() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
-    future::block_on(future::or(&mut task, future::ready(Default::default())));
+    future::block_on(future::or(&mut task, future::ready(())));
     assert_eq!(POLL.load(Ordering::SeqCst), 0);
     assert_eq!(SCHEDULE.load(Ordering::SeqCst), 0);
     assert_eq!(DATA.load(Ordering::SeqCst), 0);
@@ -177,7 +177,7 @@ fn try_join_and_run_and_join() {
 fn join_during_run() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -209,7 +209,7 @@ fn join_during_run() {
 fn try_join_during_run() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, mut task) = async_task::spawn_with(f, s, d);
+    let (runnable, mut task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
@@ -223,7 +223,7 @@ fn try_join_during_run() {
         .add(|| {
             thread::sleep(ms(200));
 
-            future::block_on(future::or(&mut task, future::ready(Default::default())));
+            future::block_on(future::or(&mut task, future::ready(())));
             assert_eq!(POLL.load(Ordering::SeqCst), 1);
             assert_eq!(SCHEDULE.load(Ordering::SeqCst), 0);
             assert_eq!(DATA.load(Ordering::SeqCst), 0);
@@ -239,7 +239,7 @@ fn try_join_during_run() {
 fn detach_during_run() {
     future!(f, POLL, DROP_F);
     schedule!(s, d, SCHEDULE, DATA, DROP_S);
-    let (runnable, task) = async_task::spawn_with(f, s, d);
+    let (runnable, task) = async_task_ffi::spawn_with(f, s, d);
 
     Parallel::new()
         .add(|| {
