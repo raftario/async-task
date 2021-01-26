@@ -9,8 +9,10 @@ use core::task::Waker;
 use crate::header::Header;
 use crate::raw::RawTask;
 use crate::state::*;
-use crate::utils::checked::{Checked, CheckedFuture};
 use crate::Task;
+
+#[cfg(feature = "std")]
+use crate::utils::checked::{Checked, CheckedFuture};
 
 /// Creates a new task.
 ///
