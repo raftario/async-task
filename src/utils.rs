@@ -65,13 +65,13 @@ pub(crate) fn padding_needed_for(layout: Layout, align: usize) -> usize {
 
 #[cfg(feature = "std")]
 pub(crate) mod checked {
-    use std::fmt;
     use std::future::Future;
     use std::mem::ManuallyDrop;
     use std::ops::{Deref, DerefMut};
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use std::thread::{self, ThreadId};
+    use std::{borrow::Borrow, fmt};
 
     #[inline]
     fn thread_id() -> ThreadId {
@@ -135,11 +135,21 @@ pub(crate) mod checked {
         }
     }
 
+    impl<D: fmt::Debug> fmt::Debug for Checked<D> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            assert!(
+                self.id == thread_id(),
+                "local data accessed by a thread that didn't spawn it"
+            );
+            fmt::Debug::fmt(&self.inner, f)
+        }
+    }
+
     impl<D> Drop for Checked<D> {
         fn drop(&mut self) {
             assert!(
                 self.id == thread_id(),
-                "local task dropped by a thread that didn't spawn it"
+                "local data dropped by a thread that didn't spawn it"
             );
             unsafe {
                 ManuallyDrop::drop(&mut self.inner);
@@ -153,7 +163,7 @@ pub(crate) mod checked {
         fn deref(&self) -> &Self::Target {
             assert!(
                 self.id == thread_id(),
-                "local task accessed by a thread that didn't spawn it"
+                "local data accessed by a thread that didn't spawn it"
             );
             &self.inner
         }
@@ -163,7 +173,7 @@ pub(crate) mod checked {
         fn deref_mut(&mut self) -> &mut Self::Target {
             assert!(
                 self.id == thread_id(),
-                "local task accessed by a thread that didn't spawn it"
+                "local data accessed by a thread that didn't spawn it"
             );
             &mut self.inner
         }
