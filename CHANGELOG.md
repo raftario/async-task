@@ -1,3 +1,9 @@
+# Version 4.1.0
+
+-   Add associated user data support using `_with` variants.
+-   Add `Runnable::{into_raw, from_raw}`.
+-   Add `Task::{into_raw, from_raw}`.
+
 # Version 4.0.3
 
 -   Document the return value of `Runnable::run()` better.
