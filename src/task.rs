@@ -138,6 +138,30 @@ impl<T> Task<T> {
         Fut(this).await
     }
 
+    /// Consumes the [`Task`], returning a pointer to the raw task.
+    ///
+    /// The raw pointer must eventually be converted back into a [`Task`]
+    /// by calling [`Task::from_raw`] in order to free up its resources.
+    pub fn into_raw(self) -> *mut () {
+        let ptr = self.ptr;
+        mem::forget(self);
+        ptr.as_ptr()
+    }
+
+    /// Constructs a [`Task`] from a raw task pointer.
+    ///
+    /// The raw pointer must have been previously returned by a call to [`into_raw`].
+    ///
+    /// # Safety
+    ///
+    /// See above.
+    pub unsafe fn from_raw(ptr: *mut ()) -> Task<T> {
+        Task {
+            ptr: NonNull::new_unchecked(ptr),
+            _marker: Default::default(),
+        }
+    }
+
     /// Puts the task in canceled state.
     fn set_canceled(&mut self) {
         let ptr = self.ptr.as_ptr();
